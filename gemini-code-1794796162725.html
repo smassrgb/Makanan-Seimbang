@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Misi Makanan Seimbang 3D</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #1a1a2e;
+            touch-action: none;
+        }
+        #game-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* HUD & UI Overlay */
+        #hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
+        }
+        .score-board {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 8px 18px;
+            border-radius: 25px;
+            font-weight: bold;
+            font-size: 1.1rem;
+            color: #2d3436;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            display: flex;
+            gap: 15px;
+        }
+        .score-board span.healthy { color: #27ae60; }
+        .score-board span.unhealthy { color: #e74c3c; }
+
+        #btn-settings {
+            pointer-events: auto;
+            background: #ffffff;
+            border: none;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            font-size: 1.5rem;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s;
+        }
+        #btn-settings:active { transform: scale(0.9); }
+
+        /* Crosshair */
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 14px;
+            height: 14px;
+            border: 3px solid rgba(255, 255, 255, 0.85);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 6px rgba(0,0,0,0.6);
+            transition: all 0.15s;
+        }
+        #crosshair.active {
+            width: 24px;
+            height: 24px;
+            border-color: #f1c40f;
+            background: rgba(241, 196, 15, 0.3);
+        }
+
+        /* Food Info Label on Look */
+        #target-info {
+            position: absolute;
+            top: 42%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.75);
+            color: #fff;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+        }
+
+        /* Feedback Toast */
+        #feedback-msg {
+            position: absolute;
+            top: 22%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: white;
+            opacity: 0;
+            transition: opacity 0.3s, transform 0.3s;
+            text-align: center;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.4);
+        }
+
+        /* Action Classification Buttons (Bottom Center) */
+        #action-buttons {
+            position: absolute;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            pointer-events: auto;
+            z-index: 10;
+        }
+        .classify-btn {
+            padding: 14px 22px;
+            border: none;
+            border-radius: 16px;
+            font-size: 1rem;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.4);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 125px;
+            transition: transform 0.1s, opacity 0.2s;
+        }
+        .classify-btn:active { transform: scale(0.92); }
+        #btn-healthy { background: linear-gradient(135deg, #2ecc71, #27ae60); }
+        #btn-unhealthy { background: linear-gradient(135deg, #e74c3c, #c0392b); }
+        .key-hint {
+            font-size: 0.75rem;
+            opacity: 0.85;
+            margin-top: 3px;
+        }
+
+        /* Touch Controls */
+        #touch-controls {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        #joystick-zone {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            width: 130px;
+            height: 130px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.35);
+            border-radius: 50%;
+            pointer-events: auto;
+        }
+        #joystick-knob {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        #look-zone {
+            position: absolute;
+            top: 70px;
+            right: 0;
+            width: 55%;
+            height: calc(100% - 170px);
+            pointer-events: auto;
+        }
+
+        /* Modals (Start & Settings) */
+        .modal-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(15, 23, 42, 0.88);
+            backdrop-filter: blur(6px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            pointer-events: auto;
+        }
+        .modal-box {
+            background: #ffffff;
+            width: 90%;
+            max-width: 440px;
+            border-radius: 24px;
+            padding: 25px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+            color: #1e293b;
+        }
+        .modal-box h2 {
+            text-align: center;
+            margin-bottom: 18px;
+            color: #0f172a;
+            font-size: 1.5rem;
+        }
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .setting-item:last-of-type { border-bottom: none; }
+        .setting-label {
+            font-weight: 600;
+            font-size: 1rem;
+        }
+        select, .toggle-btn {
+            padding: 8px 14px;
+            border-radius: 10px;
+            border: 1px solid #cbd5e1;
+            background: #f8fafc;
+            font-weight: bold;
+            font-size: 0.95rem;
+            cursor: pointer;
+            color: #0f172a;
+        }
+        .toggle-btn.on {
+            background: #22c55e;
+            color: white;
+            border-color: #16a34a;
+        }
+        .primary-btn {
+            width: 100%;
+            margin-top: 20px;
+            padding: 14px;
+            border: none;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: white;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+        }
+        .guide-list {
+            background: #f1f5f9;
+            padding: 12px 15px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        .hidden { display: none !important; }
+
+        @media (max-width: 600px) {
+            .classify-btn {
+                padding: 12px 14px;
+                min-width: 105px;
+                font-size: 0.9rem;
+            }
+            #joystick-zone {
+                width: 110px;
+                height: 110px;
+                bottom: 95px;
+                left: 20px;
+            }
+        }
+    </style>
+    <!-- Import Three.js dari CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <canvas id="game-canvas"></canvas>
+
+    <!-- UI HUD -->
+    <div id="hud">
+        <div class="top-bar">
+            <div class="score-board">
+                <div>Markah: <span id="score-val" class="healthy">0</span></div>
+                <div>Salah: <span id="wrong-val" class="unhealthy">0</span></div>
+            </div>
+            <button id="btn-settings" title="Tetapan">⚙️</button>
+        </div>
+
+        <div id="crosshair"></div>
+        <div id="target-info">Brokoli</div>
+        <div id="feedback-msg">Betul! +10 Markah</div>
+
+        <!-- Kawalan Sentuh (Touchscreen) -->
+        <div id="touch-controls">
+            <div id="joystick-zone">
+                <div id="joystick-knob"></div>
+            </div>
+            <div id="look-zone"></div>
+        </div>
+
+        <!-- Butang Klasifikasi Makanan -->
+        <div id="action-buttons">
+            <button id="btn-healthy" class="classify-btn">
+                <span>🥗 SEIMBANG</span>
+                <span class="key-hint">[Tekan 1 / E]</span>
+            </button>
+            <button id="btn-unhealthy" class="classify-btn">
+                <span>🍔 TIDAK SIHAT</span>
+                <span class="key-hint">[Tekan 2 / Q]</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Skrin Mula -->
+    <div id="start-modal" class="modal-overlay">
+        <div class="modal-box">
+            <h2>🥗 Misi Makanan Seimbang 3D</h2>
+            <div class="guide-list">
+                <p><strong>Cara Bermain:</strong></p>
+                <p>1. Bergerak di dalam ruang 3D dan halakan titik tengah skrin ke arah makanan.</p>
+                <p>2. Kelaskan makanan tersebut sama ada:</p>
+                <p>✅ <b>Seimbang:</b> Brokoli, Roti, Pegaga</p>
+                <p>❌ <b>Tidak Sihat:</b> Donut, Piza, Burger</p>
+            </div>
+            <button id="btn-start-game" class="primary-btn">MULA BERMAIN ▶</button>
+        </div>
+    </div>
+
+    <!-- Menu Tetapan (Settings) -->
+    <div id="settings-modal" class="modal-overlay hidden">
+        <div class="modal-box">
+            <h2>⚙️ Tetapan Permainan</h2>
+            
+            <div class="setting-item">
+                <span class="setting-label">🎵 Lagu Latar</span>
+                <button id="toggle-music" class="toggle-btn on">HIDUP</button>
+            </div>
+
+            <div class="setting-item">
+                <span class="setting-label">🖥️ Resolusi Grafik</span>
+                <select id="select-resolution">
+                    <option value="0.5">Rendah (Lancar)</option>
+                    <option value="0.75">Sederhana</option>
+                    <option value="1" selected>Tinggi (HD)</option>
+                </select>
+            </div>
+
+            <div class="setting-item">
+                <span class="setting-label">🎮 Kawalan (Controller)</span>
+                <select id="select-controller">
+                    <option value="touch" selected>Touchscreen (Sentuh)</option>
+                    <option value="keyboard">Keyboard (WASD + Tetikus)</option>
+                </select>
+            </div>
+
+            <div class="setting-item">
+                <span class="setting-label">🔲 Skrin Penuh (Fullscreen)</span>
+                <button id="toggle-fullscreen" class="toggle-btn">AKTIFKAN</button>
+            </div>
+
+            <button id="btn-close-settings" class="primary-btn">SIMPAN & SAMBUNG</button>
+        </div>
+    </div>
+
+<script>
+/**
+ * SISTEM AUDIO PROSEDURAL (WEB AUDIO API)
+ * Menjana lagu latar ceria & kesan bunyi tanpa memerlukan fail luar
+ */
+class SoundEngine {
+    constructor() {
+        this.ctx = null;
+        this.isPlaying = false;
+        this.musicEnabled = true;
+        this.intervalId = null;
+        this.step = 0;
+        // Melodi ceria dalam frekuensi Hz
+        this.melody = [
+            261.63, 329.63, 392.00, 523.25,
+            392.00, 329.63, 293.66, 349.23,
+            440.00, 523.25, 440.00, 349.23,
+            392.00, 329.63, 293.66, 261.63
+        ];
+    }
+
+    init() {
+        if (!this.ctx) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            this.ctx = new AudioContext();
+        }
+        if (this.ctx.state === 'suspended') {
+            this.ctx.resume();
+        }
+    }
+
+    startMusic() {
+        this.init();
+        if (this.isPlaying || !this.musicEnabled) return;
+        this.isPlaying = true;
+        this.intervalId = setInterval(() => {
+            if (!this.musicEnabled) return;
+            this.playNote(this.melody[this.step % this.melody.length], 0.22, 'sine', 0.06);
+            this.step++;
+        }, 320);
+    }
+
+    stopMusic() {
+        this.isPlaying = false;
+        if (this.intervalId) clearInterval(this.intervalId);
+    }
+
+    playNote(freq, duration, type = 'sine', volume = 0.1) {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+        gain.gain.setValueAtTime(volume, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + duration);
+    }
+
+    playCorrect() {
+        this.init();
+        this.playNote(523.25, 0.15, 'triangle', 0.2);
+        setTimeout(() => this.playNote(659.25, 0.25, 'triangle', 0.2), 100);
+    }
+
+    playWrong() {
+        this.init();
+        this.playNote(200, 0.2, 'sawtooth', 0.15);
+        setTimeout(() => this.playNote(150, 0.3, 'sawtooth', 0.15), 150);
+    }
+}
+
+const audio = new SoundEngine();
+
+/**
+ * KONFIGURASI & PEMBOLEHUBAH PERMAINAN
+ */
+const state = {
+    score: 0,
+    wrong: 0,
+    controllerMode: 'touch', // 'touch' atau 'keyboard'
+    resolutionScale: 1,
+    isPaused: true,
+    targetedFood: null
+};
+
+// Setup Three.js Scene, Camera, Renderer
+const canvas = document.getElementById('game-canvas');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb); // Langit biru cerah
+scene.fog = new THREE.Fog(0x87ceeb, 15, 55);
+
+const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 100);
+camera.position.set(0, 1.7, 6); // Ketinggian mata pemain (First Person)
+camera.rotation.order = 'YXZ';
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio * state.resolutionScale);
+renderer.shadowMap.enabled = true;
+
+// Pencahayaan (Lighting)
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
+scene.add(ambientLight);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(10, 20, 10);
+dirLight.castShadow = true;
+scene.add(dirLight);
+
+// Persekitaran Lantai & Dinding Arena (Kantin/Taman Sihat)
+function buildEnvironment() {
+    // Lantai berpetak
+    const floorGeo = new THREE.PlaneGeometry(40, 40);
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0xecf0f1, roughness: 0.8 });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    // Grid Lantai
+    const gridHelper = new THREE.GridHelper(40, 20, 0xbdc3c7, 0xdcdde1);
+    gridHelper.position.y = 0.01;
+    scene.add(gridHelper);
+
+    // Dinding Sempadan
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x34495e });
+    const wallPositions = [
+        { x: 0, z: -20, rotY: 0 },
+        { x: 0, z: 20, rotY: Math.PI },
+        { x: -20, z: 0, rotY: Math.PI / 2 },
+        { x: 20, z: 0, rotY: -Math.PI / 2 }
+    ];
+    wallPositions.forEach(pos => {
+        const wall = new THREE.Mesh(new THREE.BoxGeometry(40, 3, 0.5), wallMat);
+        wall.position.set(pos.x, 1.5, pos.z);
+        wall.rotation.y = pos.rotY;
+        scene.add(wall);
+    });
+
+    // Meja Hidangan di sekeliling arena
+    const tablePositions = [
+        { x: -6, z: -5 }, { x: 0, z: -7 }, { x: 6, z: -5 },
+        { x: -7, z: 3 },  { x: 7, z: 3 },  { x: 0, z: -12 }
+    ];
+    tablePositions.forEach(pos => {
+        const pedestal = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.9, 1.1, 1.0, 24),
+            new THREE.MeshStandardMaterial({ color: 0xf39c12 })
+        );
+        pedestal.position.set(pos.x, 0.5, pos.z);
+        pedestal.castShadow = true;
+        pedestal.receiveShadow = true;
+        scene.add(pedestal);
+    });
+}
+buildEnvironment();
+
+/**
+ * PEMBINAAN MODEL 3D MAKANAN (PROSEDURAL)
+ */
+const FOOD_TYPES = [
+    { id: 'brokoli', name: 'Brokoli', healthy: true },
+    { id: 'roti',    name: 'Roti',    healthy: true },
+    { id: 'pegaga',  name: 'Pegaga',  healthy: true },
+    { id: 'donut',   name: 'Donut',   healthy: false },
+    { id: 'piza',    name: 'Piza',    healthy: false },
+    { id: 'burger',  name: 'Burger',  healthy: false }
+];
+
+function createFoodMesh(typeId) {
+    const group = new THREE.Group();
+
+    if (typeId === 'brokoli') {
+        // Batang brokoli
+        const stem = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.15, 0.2, 0.5, 12),
+            new THREE.MeshStandardMaterial({ color: 0x8bc34a })
+        );
+        stem.position.y = 0.25;
+        group.add(stem);
+        // Kuntum hijau
+        const crownMat = new THREE.MeshStandardMaterial({ color: 0x2e7d32 });
+        const positions = [[0,0.6,0], [-0.2,0.52,0.1], [0.2,0.52,0.1], [0,0.52,-0.2]];
+        positions.forEach(p => {
+            const puff = new THREE.Mesh(new THREE.SphereGeometry(0.24, 12, 12), crownMat);
+            puff.position.set(...p);
+            group.add(puff);
+        });
+    } 
+    else if (typeId === 'roti') {
+        // Buku roti gandum penuh
+        const loaf = new THREE.Mesh(
+            new THREE.BoxGeometry(0.75, 0.45, 0.45),
+            new THREE.MeshStandardMaterial({ color: 0xd99b52 })
+        );
+        loaf.position.y = 0.25;
+        group.add(loaf);
+        const crust = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.225, 0.225, 0.75, 16),
+            new THREE.MeshStandardMaterial({ color: 0xa0522d })
+        );
+        crust.rotation.z = Math.PI / 2;
+        crust.position.y = 0.45;
+        group.add(crust);
+    } 
+    else if (typeId === 'pegaga') {
+        // Daun pegaga berbentuk kipas bulat bertangkai
+        const leafMat = new THREE.MeshStandardMaterial({ color: 0x4caf50, side: THREE.DoubleSide });
+        for (let i = 0; i < 4; i++) {
+            const angle = (i * Math.PI) / 2;
+            const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.4), leafMat);
+            stem.position.set(Math.cos(angle)*0.1, 0.2, Math.sin(angle)*0.1);
+            stem.rotation.z = Math.cos(angle) * 0.3;
+            stem.rotation.x = Math.sin(angle) * 0.3;
+            group.add(stem);
+
+            const leaf = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.03, 16), leafMat);
+            leaf.position.set(Math.cos(angle)*0.22, 0.4 + (i%2)*0.05, Math.sin(angle)*0.22);
+            leaf.rotation.x = 0.3;
+            group.add(leaf);
+        }
+    } 
+    else if (typeId === 'donut') {
+        // Gelang donut
+        const dough = new THREE.Mesh(
+            new THREE.TorusGeometry(0.32, 0.14, 16, 24),
+            new THREE.MeshStandardMaterial({ color: 0xe6a15c })
+        );
+        dough.rotation.x = Math.PI / 2;
+        dough.position.y = 0.25;
+        group.add(dough);
+        // Aising merah jambu
+        const icing = new THREE.Mesh(
+            new THREE.TorusGeometry(0.32, 0.145, 16, 24, Math.PI * 2),
+            new THREE.MeshStandardMaterial({ color: 0xff4081 })
+        );
+        icing.rotation.x = Math.PI / 2;
+        icing.position.y = 0.28;
+        group.add(icing);
+    } 
+    else if (typeId === 'piza') {
+        // Potongan segitiga piza
+        const slice = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.45, 0.45, 0.08, 3),
+            new THREE.MeshStandardMaterial({ color: 0xffca28 })
+        );
+        slice.position.y = 0.2;
+        group.add(slice);
+        // Pepperoni merah
+        const pepMat = new THREE.MeshStandardMaterial({ color: 0xc62828 });
+        [[0, 0.25, 0.1], [-0.12, 0.25, -0.1], [0.12, 0.25, -0.1]].forEach(p => {
+            const pep = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.02, 12), pepMat);
+            pep.position.set(...p);
+            group.add(pep);
+        });
+    } 
+    else if (typeId === 'burger') {
+        // Roti bawah
+        const bunBot = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.35, 0.32, 0.14, 20),
+            new THREE.MeshStandardMaterial({ color: 0xd9822b })
+        );
+        bunBot.position.y = 0.12;
+        group.add(bunBot);
+        // Daging
+        const patty = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.37, 0.37, 0.12, 20),
+            new THREE.MeshStandardMaterial({ color: 0x4e342e })
+        );
+        patty.position.y = 0.25;
+        group.add(patty);
+        // Keju
+        const cheese = new THREE.Mesh(
+            new THREE.BoxGeometry(0.55, 0.04, 0.55),
+            new THREE.MeshStandardMaterial({ color: 0xffd600 })
+        );
+        cheese.position.y = 0.32;
+        group.add(cheese);
+        // Roti atas
+        const bunTop = new THREE.Mesh(
+            new THREE.SphereGeometry(0.35, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+            new THREE.MeshStandardMaterial({ color: 0xd9822b })
+        );
+        bunTop.position.y = 0.34;
+        group.add(bunTop);
+    }
+
+    // Hitbox halimunan untuk memudahkan pengesanan pandangan (Raycasting)
+    const hitbox = new THREE.Mesh(
+        new THREE.BoxGeometry(1.1, 1.1, 1.1),
+        new THREE.MeshBasicMaterial({ visible: false })
+    );
+    hitbox.position.y = 0.4;
+    group.add(hitbox);
+
+    return group;
+}
+
+// Urus Kemunculan Makanan di Atas Meja
+const spawnPoints = [
+    { x: -6, y: 1.05, z: -5 },
+    { x: 0,  y: 1.05, z: -7 },
+    { x: 6,  y: 1.05, z: -5 },
+    { x: -7, y: 1.05, z: 3 },
+    { x: 7,  y: 1.05, z: 3 },
+    { x: 0,  y: 1.05, z: -12 }
+];
+
+let activeFoods = [];
+
+function spawnFoodAt(pointIndex) {
+    const pt = spawnPoints[pointIndex];
+    const randomFood = FOOD_TYPES[Math.floor(Math.random() * FOOD_TYPES.length)];
+    const mesh = createFoodMesh(randomFood.id);
+    mesh.position.set(pt.x, pt.y, pt.z);
+    mesh.userData = {
+        ...randomFood,
+        spawnIndex: pointIndex,
+        baseY: pt.y
+    };
+    scene.add(mesh);
+    activeFoods.push(mesh);
+}
+
+// Munculkan makanan awal pada semua meja
+spawnPoints.forEach((_, idx) => spawnFoodAt(idx));
+
+/**
+ * KAWALAN PERGERAKAN & KAMERA (TOUCHSCREEN & KEYBOARD)
+ */
+const moveInput = { forward: 0, right: 0 };
+let yaw = 0;
+let pitch = 0;
+
+// 1. Kawalan Joystick Sentuh
+const joystickZone = document.getElementById('joystick-zone');
+const joystickKnob = document.getElementById('joystick-knob');
+let joyTouchId = null;
+
+joystickZone.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    const touch = e.changedTouches[0];
+    joyTouchId = touch.identifier;
+    updateJoystick(touch);
+}, { passive: false });
+
+joystickZone.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    for (let touch of e.changedTouches) {
+        if (touch.identifier === joyTouchId) {
+            updateJoystick(touch);
+        }
+    }
+}, { passive: false });
+
+function resetJoystick() {
+    joyTouchId = null;
+    moveInput.forward = 0;
+    moveInput.right = 0;
+    joystickKnob.style.transform = 'translate(-50%, -50%)';
+}
+
+joystickZone.addEventListener('touchend', resetJoystick);
+joystickZone.addEventListener('touchcancel', resetJoystick);
+
+function updateJoystick(touch) {
+    const rect = joystickZone.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const maxRadius = rect.width / 2 - 20;
+
+    let dx = touch.clientX - centerX;
+    let dy = touch.clientY - centerY;
+    const dist = Math.hypot(dx, dy);
+
+    if (dist > maxRadius) {
+        dx = (dx / dist) * maxRadius;
+        dy = (dy / dist) * maxRadius;
+    }
+
+    joystickKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    moveInput.right = dx / maxRadius;
+    moveInput.forward = -dy / maxRadius;
+}
+
+// 2. Kawalan Kamera Sentuh (Look Zone)
+const lookZone = document.getElementById('look-zone');
+let lookTouchId = null;
+let lastLookX = 0;
+let lastLookY = 0;
+
+lookZone.addEventListener('touchstart', (e) => {
+    const touch = e.changedTouches[0];
+    lookTouchId = touch.identifier;
+    lastLookX = touch.clientX;
+    lastLookY = touch.clientY;
+});
+
+lookZone.addEventListener('touchmove', (e) => {
+    for (let touch of e.changedTouches) {
+        if (touch.identifier === lookTouchId) {
+            const dx = touch.clientX - lastLookX;
+            const dy = touch.clientY - lastLookY;
+            yaw -= dx * 0.005;
+            pitch -= dy * 0.005;
+            pitch = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, pitch));
+            lastLookX = touch.clientX;
+            lastLookY = touch.clientY;
+        }
+    }
+});
+
+lookZone.addEventListener('touchend', () => { lookTouchId = null; });
+
+// 3. Kawalan Papan Kekunci & Tetikus (Keyboard Mode)
+const keysPressed = {};
+window.addEventListener('keydown', (e) => {
+    keysPressed[e.code] = true;
+    if (!state.isPaused) {
+        if (e.code === 'Digit1' || e.code === 'KeyE') classifyTarget(true);
+        if (e.code === 'Digit2' || e.code === 'KeyQ') classifyTarget(false);
+    }
+});
+window.addEventListener('keyup', (e) => { keysPressed[e.code] = false; });
+
+canvas.addEventListener('click', () => {
+    if (state.controllerMode === 'keyboard' && !state.isPaused) {
+        canvas.requestPointerLock?.();
+    }
+});
+
+document.addEventListener('mousemove', (e) => {
+    if (document.pointerLockElement === canvas && state.controllerMode === 'keyboard') {
+        yaw -= e.movementX * 0.0025;
+        pitch -= e.movementY * 0.0025;
+        pitch = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, pitch));
+    }
+});
+
+/**
+ * PENGESANAN PANDANGAN (RAYCASTER) & KLASIFIKASI MAKANAN
+ */
+const raycaster = new THREE.Raycaster();
+const crosshair = document.getElementById('crosshair');
+const targetInfo = document.getElementById('target-info');
+const feedbackMsg = document.getElementById('feedback-msg');
+
+function checkLookTarget() {
+    raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+    const meshes = activeFoods.map(f => f.children[f.children.length - 1]); // Hitboxes
+    const intersects = raycaster.intersectObjects(meshes);
+
+    if (intersects.length > 0 && intersects[0].distance < 12) {
+        const hitGroup = intersects[0].object.parent;
+        state.targetedFood = hitGroup;
+        crosshair.classList.add('active');
+        targetInfo.textContent = hitGroup.userData.name;
+        targetInfo.style.opacity = '1';
+    } else {
+        state.targetedFood = null;
+        crosshair.classList.remove('active');
+        targetInfo.style.opacity = '0';
+    }
+}
+
+function showFeedback(text, isSuccess) {
+    feedbackMsg.textContent = text;
+    feedbackMsg.style.background = isSuccess ? 'rgba(39, 174, 96, 0.92)' : 'rgba(231, 76, 60, 0.92)';
+    feedbackMsg.style.opacity = '1';
+    feedbackMsg.style.transform = 'translate(-50%, -60%)';
+    setTimeout(() => {
+        feedbackMsg.style.opacity = '0';
+        feedbackMsg.style.transform = 'translate(-50%, -50%)';
+    }, 1200);
+}
+
+function classifyTarget(userSaysHealthy) {
+    if (!state.targetedFood) {
+        showFeedback('Halakan titik tengah ke arah makanan dahulu!', false);
+        return;
+    }
+
+    const food = state.targetedFood;
+    const isActuallyHealthy = food.userData.healthy;
+    const foodName = food.userData.name;
+    const spawnIdx = food.userData.spawnIndex;
+
+    if (userSaysHealthy === isActuallyHealthy) {
+        state.score += 10;
+        document.getElementById('score-val').textContent = state.score;
+        audio.playCorrect();
+        showFeedback(`✅ Betul! ${foodName} ialah ${isActuallyHealthy ? 'Makanan Seimbang' : 'Tidak Sihat'}`, true);
+    } else {
+        state.wrong += 1;
+        document.getElementById('wrong-val').textContent = state.wrong;
+        audio.playWrong();
+        showFeedback(`❌ Salah! ${foodName} sepatutnya ${isActuallyHealthy ? 'Seimbang' : 'Tidak Sihat'}`, false);
+    }
+
+    // Buang makanan lama & munculkan makanan baru selepas 1 saat
+    scene.remove(food);
+    activeFoods = activeFoods.filter(f => f !== food);
+    state.targetedFood = null;
+
+    setTimeout(() => spawnFoodAt(spawnIdx), 1000);
+}
+
+document.getElementById('btn-healthy').addEventListener('click', () => classifyTarget(true));
+document.getElementById('btn-unhealthy').addEventListener('click', () => classifyTarget(false));
+
+/**
+ * PENGURUSAN MENU TETAPAN (SETTINGS)
+ */
+const startModal = document.getElementById('start-modal');
+const settingsModal = document.getElementById('settings-modal');
+const touchControlsEl = document.getElementById('touch-controls');
+
+document.getElementById('btn-start-game').addEventListener('click', () => {
+    startModal.classList.add('hidden');
+    state.isPaused = false;
+    audio.startMusic();
+});
+
+document.getElementById('btn-settings').addEventListener('click', () => {
+    state.isPaused = true;
+    document.exitPointerLock?.();
+    settingsModal.classList.remove('hidden');
+});
+
+document.getElementById('btn-close-settings').addEventListener('click', () => {
+    settingsModal.classList.add('hidden');
+    state.isPaused = false;
+});
+
+// 1. Lagu Latar Toggle
+const toggleMusicBtn = document.getElementById('toggle-music');
+toggleMusicBtn.addEventListener('click', () => {
+    audio.musicEnabled = !audio.musicEnabled;
+    if (audio.musicEnabled) {
+        toggleMusicBtn.textContent = 'HIDUP';
+        toggleMusicBtn.classList.add('on');
+        audio.startMusic();
+    } else {
+        toggleMusicBtn.textContent = 'MATI';
+        toggleMusicBtn.classList.remove('on');
+        audio.stopMusic();
+    }
+});
+
+// 2. Resolusi Grafik
+document.getElementById('select-resolution').addEventListener('change', (e) => {
+    state.resolutionScale = parseFloat(e.target.value);
+    renderer.setPixelRatio(window.devicePixelRatio * state.resolutionScale);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// 3. Kawalan Keyboard atau Touchscreen
+document.getElementById('select-controller').addEventListener('change', (e) => {
+    state.controllerMode = e.target.value;
+    if (state.controllerMode === 'touch') {
+        touchControlsEl.classList.remove('hidden');
+    } else {
+        touchControlsEl.classList.add('hidden');
+    }
+});
+
+// 4. Skrin Penuh (Fullscreen)
+const toggleFullscreenBtn = document.getElementById('toggle-fullscreen');
+toggleFullscreenBtn.addEventListener('click', () => {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen?.().catch(() => {});
+        toggleFullscreenBtn.textContent = 'KELUAR';
+        toggleFullscreenBtn.classList.add('on');
+    } else {
+        document.exitFullscreen?.();
+        toggleFullscreenBtn.textContent = 'AKTIFKAN';
+        toggleFullscreenBtn.classList.remove('on');
+    }
+});
+
+// Auto-laras saiz skrin bila telefon dipusingkan (Portrait / Landscape)
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+/**
+ * GELUNG ANIMASI UTAMA (GAME LOOP)
+ */
+const clock = new THREE.Clock();
+
+function animate() {
+    requestAnimationFrame(animate);
+    const delta = clock.getDelta();
+    const elapsed = clock.getElapsedTime();
+
+    // Putar & apungkan model makanan secara perlahan
+    activeFoods.forEach((food, idx) => {
+        food.rotation.y += delta * 1.2;
+        food.position.y = food.userData.baseY + Math.sin(elapsed * 2.5 + idx) * 0.08;
+    });
+
+    if (!state.isPaused) {
+        // Kemaskini orientasi kamera
+        camera.rotation.y = yaw;
+        camera.rotation.x = pitch;
+
+        // Kira arah pergerakan pemain
+        let forwardVal = moveInput.forward;
+        let rightVal = moveInput.right;
+
+        if (state.controllerMode === 'keyboard') {
+            forwardVal = (keysPressed['KeyW'] || keysPressed['ArrowUp'] ? 1 : 0) -
+                         (keysPressed['KeyS'] || keysPressed['ArrowDown'] ? 1 : 0);
+            rightVal   = (keysPressed['KeyD'] || keysPressed['ArrowRight'] ? 1 : 0) -
+                         (keysPressed['KeyA'] || keysPressed['ArrowLeft'] ? 1 : 0);
+        }
+
+        const speed = 6.0 * delta;
+        const forwardDir = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+        const rightDir = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+
+        camera.position.addScaledVector(forwardDir, forwardVal * speed);
+        camera.position.addScaledVector(rightDir, rightVal * speed);
+
+        // Hadkan pemain supaya tidak menembusi dinding arena
+        camera.position.x = Math.max(-18.5, Math.min(18.5, camera.position.x));
+        camera.position.z = Math.max(-18.5, Math.min(18.5, camera.position.z));
+
+        checkLookTarget();
+    }
+
+    renderer.render(scene, camera);
+}
+
+animate();
+</script>
+</body>
+</html>
